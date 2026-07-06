@@ -1,7 +1,7 @@
 import cv2
 import time
 
-from can_interface import CANCommInterface
+from serial_interface import SerialCommInterface
 from situation_evaluator import SituationEvaluator
 from vision_perception import VisionPerception
 
