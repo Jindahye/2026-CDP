@@ -1,6 +1,7 @@
 import cv2
 import time
 
+# 바뀐 시리얼 통신 클래스를 불러옵니다.
 from serial_interface import SerialCommInterface
 from situation_evaluator import SituationEvaluator
 from vision_perception import VisionPerception
@@ -15,17 +16,19 @@ def get_bio_signal_from_team3():
 def main():
     print("--- SafeCar Vision & Decision Node Start ---")
     
-    can_net = CANCommInterface(channel='can0')
+    # 1. CAN 대신 시리얼 통신(MoonWalker) 객체 생성
+    serial_net = SerialCommInterface(port='/dev/ttyUSB0', baudrate=115200)
     evaluator = SituationEvaluator()
-    vision = VisionPerception(hef_path="yolov8n_hailo8.hef")
+    
+    vision = VisionPerception(hef_path="yolov8n.hef")
 
-    # C920 웹캠 연결 (포트 0 또는 1)
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    # 2. 라즈베리파이 카메라 모듈 3 전용 파이프라인 적용 (C920 코드 삭제)
+    print("[System] 라즈베리파이 카메라 모듈 3 초기화 중...")
+    pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink"
+    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
 
     if not cap.isOpened():
-        print("[Error] C920 카메라를 찾을 수 없습니다.")
+        print("[Error] 라즈베리파이 카메라를 열 수 없습니다. 케이블 연결을 확인하세요.")
         return
 
     last_command = ""
@@ -45,9 +48,9 @@ def main():
         # 3. 상황 판단
         current_command = evaluator.evaluate(bio_anomaly, obstacle_detected)
 
-        # 4. CAN 명령 송신 (상태가 변했을 때만 전송)
+        # 4. 시리얼 명령 송신 (상태가 변했을 때만 모터 제어기로 전송)
         if current_command != last_command:
-            can_net.send_command(current_command)
+            serial_net.send_command(current_command)
             last_command = current_command
 
         # UI 출력
