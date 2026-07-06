@@ -1,61 +1,44 @@
 import cv2
 import time
-
-# 바뀐 시리얼 통신 클래스를 불러옵니다.
 from serial_interface import SerialCommInterface
 from situation_evaluator import SituationEvaluator
 from vision_perception import VisionPerception
 
-def get_bio_signal_from_team3():
-    """
-    [요청 사항] 팀원 3(STM32/ESP32)으로부터 생체 신호를 어떻게 받을지 구현해야 합니다.
-    현재는 실차 테스트를 위해 10초 뒤 무조건 이상이 발생하도록 임시 처리했습니다.
-    """
-    return False 
-
 def main():
     print("--- SafeCar Vision & Decision Node Start ---")
     
-    # 1. CAN 대신 시리얼 통신(MoonWalker) 객체 생성
+    # 시리얼 통신 연결
     serial_net = SerialCommInterface(port='/dev/ttyUSB0', baudrate=115200)
     evaluator = SituationEvaluator()
-    
     vision = VisionPerception(hef_path="yolov8n.hef")
 
-    # 2. 라즈베리파이 카메라 모듈 3 직접 연결 (GStreamer)
-    pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink"
-    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+    # 카메라 연결 (가장 확실한 방법)
+    # 0번이 안 되면 1번, 그것도 안 되면 V4L2 옵션을 붙이는 방식입니다.
+    cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
 
     if not cap.isOpened():
-        print("[Error] 라즈베리파이 카메라를 열 수 없습니다.")
+        print("[Error] 카메라를 열 수 없습니다. 0번 대신 1번으로 시도해보세요.")
         return
 
+    print("[System] 카메라 연결 성공! 주행 로직을 시작합니다.")
+    
     last_command = ""
     start_time = time.time()
 
     while True:
         ret, frame = cap.read()
         if not ret:
+            print("[Error] 프레임을 읽을 수 없습니다.")
             break
 
-        # 1. 비전 처리 (차선 및 장애물)
         processed_frame, obstacle_detected = vision.process_frame(frame)
-
-        # 2. 생체 신호 수신 (임시: 10초 후 이상 발생 시뮬레이션)
         bio_anomaly = (time.time() - start_time) > 10.0
-
-        # 3. 상황 판단
         current_command = evaluator.evaluate(bio_anomaly, obstacle_detected)
 
-        # 4. 시리얼 명령 송신 (상태가 변했을 때만 모터 제어기로 전송)
         if current_command != last_command:
             serial_net.send_command(current_command)
             last_command = current_command
-
-        # UI 출력
-        cv2.putText(processed_frame, f"CMD: {current_command}", (10, 40), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
-        cv2.imshow("SafeCar - Team 1", processed_frame)
+            print(f"[Run] 명령 송신: {current_command}")
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
