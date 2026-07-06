@@ -23,9 +23,7 @@ def main():
     vision = VisionPerception(hef_path="yolov8n.hef")
 
     # 2. 라즈베리파이 카메라 모듈 3 전용 파이프라인 적용 (C920 코드 삭제)
-    print("[System] 라즈베리파이 카메라 모듈 3 초기화 중...")
-    pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink"
-    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+    cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
         print("[Error] 라즈베리파이 카메라를 열 수 없습니다. 케이블 연결을 확인하세요.")
